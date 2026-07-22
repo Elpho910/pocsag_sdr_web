@@ -1,4 +1,4 @@
-# pager-sdr-web
+# pocsag-sdr-web
 
 A lightweight Raspberry Pi + RTL-SDR + nginx web frontend for replacing the classic Windows + PDW POCSAG monitoring stack with a cheap SDR dongle and a browser.
 
