@@ -1,0 +1,7 @@
+[Unit]
+Description=Pager health snapshot writer
+After=pager-decode.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pager-health-check.sh

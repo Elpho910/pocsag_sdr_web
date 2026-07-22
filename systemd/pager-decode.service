@@ -1,0 +1,21 @@
+[Unit]
+Description=Persistent pager decoder (rtl_fm -> multimon-ng -> shared log)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/pager-sdr-web/pager.env
+User=__PAGER_USER__
+Group=__PAGER_GROUP__
+WorkingDirectory=__WORKDIR__
+ExecStart=/usr/local/bin/run-pager-decode.sh
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

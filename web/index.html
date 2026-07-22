@@ -1,0 +1,280 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width,initial-scale=1'>
+  <title>Pager Feed</title>
+  <link rel='icon' href='/favicon.svg' type='image/svg+xml'>
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#171a21; --panel-2:#1d222b; --border:#2a313d;
+      --text:#e7ecf2; --muted:#98a3b3; --accent:#6aa2ff; --ok:#1f7a4c; --warn:#8a6510; --bad:#7f1d1d;
+      --hl-bg:#3a2d02; --hl-border:#d6a700;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Arial,sans-serif;background:radial-gradient(circle at top,#161b25,#0f1115 55%);color:var(--text);margin:0;padding:20px}
+    .wrap{max-width:1800px;margin:0 auto}
+    .shell{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:0 16px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;height:calc(100vh - 40px)}
+    header{padding:14px 16px;background:linear-gradient(180deg,#1b212b,#171a21);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+    .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .title{font-weight:700;letter-spacing:.2px}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;background:#263238;color:#b2dfdb;font-size:12px}
+    .small{color:var(--muted);font-size:12px;margin-top:6px}
+
+    .controls{padding:12px 16px;background:var(--panel-2);border-bottom:1px solid var(--border);display:grid;gap:8px;max-height:240px;opacity:1;overflow:hidden;transition:max-height .22s ease, opacity .18s ease, padding .18s ease, border-color .18s ease}
+    .controls.collapsed{max-height:0;opacity:0;padding-top:0;padding-bottom:0;border-bottom-color:transparent}
+    .controls label{font-size:12px;color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    textarea{
+      width:100%;min-height:60px;max-height:140px;resize:vertical;
+      background:#0f141c;color:var(--text);border:1px solid #364152;border-radius:10px;
+      padding:10px 11px;font:13px/1.35 ui-monospace,Consolas,monospace;
+    }
+    button{
+      border:1px solid #3b4a61;background:#21314a;color:#d8e7ff;border-radius:10px;
+      padding:8px 12px;font-size:13px;cursor:pointer
+    }
+    button:hover{filter:brightness(1.08)}
+    .hint{font-size:12px;color:var(--muted)}
+
+    #log{padding:10px 10px 14px;overflow-y:auto;flex:1;min-height:0}
+    .entry{
+      white-space:pre-wrap;
+      font-family:ui-monospace,monospace;
+      line-height:1.38;
+      padding:10px 11px;
+      margin:0;
+      border-left:4px solid #2f3a40;
+      border-top:1px solid var(--border);
+      word-break:break-word;
+      font-size:13px;
+    }
+    .entry:nth-child(odd){background:#141922;border-left-color:#355c7d}
+    .entry:nth-child(even){background:#181e28;border-left-color:#6c5b7b}
+    .entry:first-child{border-top:0}
+    .entry.highlight{
+      background:linear-gradient(90deg,rgba(214,167,0,.18),rgba(214,167,0,.06));
+      border-left-color:var(--hl-border);
+      box-shadow:inset 0 0 0 1px rgba(214,167,0,.35);
+    }
+    .entry .hb{color:#7fb3e8;font-weight:600}
+    .entry.new-msg{
+      animation:newPulse 1.2s ease 2;
+      box-shadow:inset 0 0 0 1px rgba(106,162,255,.55), 0 0 0 1px rgba(106,162,255,.25);
+    }
+    @keyframes newPulse{
+      0%,100%{ box-shadow:inset 0 0 0 1px rgba(106,162,255,.45), 0 0 0 0 rgba(106,162,255,0); }
+      50%{ box-shadow:inset 0 0 0 1px rgba(106,162,255,.95), 0 0 0 6px rgba(106,162,255,.12); }
+    }
+    .entry mark{background:#f1cb37;color:#222;padding:0 2px;border-radius:3px}
+    .ts{color:#9fb0c7;font-weight:600;letter-spacing:.2px}
+    .ts-age{color:#7f8b9d;font-weight:500;margin-left:6px;font-size:12px}
+    .empty{padding:12px;color:#b0b0b0;font:13px/1.35 ui-monospace,monospace}
+
+    #toLatest{
+      position:fixed; right:28px; bottom:24px; z-index:20;
+      border:1px solid #4d6284; background:#284068; color:#e8f1ff;
+      border-radius:999px; padding:10px 14px; font-size:13px;
+      box-shadow:0 8px 22px rgba(0,0,0,.35); cursor:pointer;
+      opacity:0; transform:translateY(8px); pointer-events:none;
+      transition:opacity .18s ease, transform .18s ease;
+    }
+    #toLatest.show{opacity:1; transform:translateY(0); pointer-events:auto}
+
+    @media (max-width: 900px){
+      #toLatest{right:14px; bottom:14px; padding:9px 12px}
+
+      body{padding:8px}
+      .shell{border-radius:10px;height:calc(100vh - 16px)}
+      header,.controls{padding:10px}
+      .entry{font-size:12.5px}
+    }
+  </style>
+</head>
+<body>
+  <div class='wrap'>
+    <div class='shell'>
+      <header>
+        <div class='top'>
+          <div class='title'>TAS Pager Feed</div>
+          <span id='status' class='badge'>starting</span>
+          <span id='health' class='badge'>health: checking</span>
+          <button id='toggleHighlights' class='badge' style='border:1px solid #3b4a61;background:#21314a;color:#d8e7ff;cursor:pointer'>Highlights</button>
+        </div>
+        <div class='small'>Auto-refresh every 2s • showing last 400 lines</div>
+      </header>
+
+      <section id='controls' class='controls collapsed'>
+        <label for='keywords'>Highlight keywords (suburbs etc.) — one per line or comma-separated</label>
+        <textarea id='keywords' placeholder='Example:
+HOBART
+GLENORCHY
+SORELL'></textarea>
+        <div class='row'>
+          <button id='saveKeywords'>Save highlights</button>
+          <span class='hint'>Saved in this browser only (localStorage).</span>
+        </div>
+      </section>
+
+      <div id='log'><div class='empty'>(waiting for first message)</div></div>
+    </div>
+  </div>
+  <button id='toLatest' aria-label='Back to latest'>Back to latest</button>
+
+<script>
+const statusEl=document.getElementById('status');
+const healthEl=document.getElementById('health');
+const logEl=document.getElementById('log');
+const controlsEl=document.getElementById('controls');
+const toggleHighlightsBtn=document.getElementById('toggleHighlights');
+const toLatestBtn=document.getElementById('toLatest');
+const keywordsEl=document.getElementById('keywords');
+const saveBtn=document.getElementById('saveKeywords');
+
+let last='';
+let prevNewest='';
+let keywords=[];
+const HEARTBEAT_TEXT = 'Northern Paging System 5 Minute Heartbeat';
+
+function setBadge(el,text,bg){el.textContent=text; el.style.background=bg;}
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+
+function parseKeywords(raw){
+  return Array.from(new Set(raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean)));
+}
+
+function parseTs(tsRaw){
+  const m = /^\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\]$/.exec(tsRaw||'');
+  if(!m) return null;
+  const y=+m[1], mo=+m[2]-1, d=+m[3], h=+m[4], mi=+m[5], s=+m[6];
+  const dt = new Date(y, mo, d, h, mi, s);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function relAge(ms){
+  const sec = Math.max(0, Math.floor(ms/1000));
+  if(sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec/60);
+  if(min < 60) return `${min}m ago`;
+  const hr = Math.floor(min/60);
+  if(hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr/24);
+  return `${day}d ago`;
+}
+
+function updateRelativeAges(){
+  const now = Date.now();
+  document.querySelectorAll('.ts-age[data-ts]').forEach(el=>{
+    const ts = Number(el.getAttribute('data-ts'));
+    if(Number.isFinite(ts)) el.textContent = relAge(now - ts);
+  });
+}
+
+function saveKeywords(){
+  keywords=parseKeywords(keywordsEl.value);
+  localStorage.setItem('pager.highlight.keywords', JSON.stringify(keywords));
+  renderLines(last);
+}
+
+function updateToLatestButton(){
+  if(logEl.scrollTop > 140) toLatestBtn.classList.add('show');
+  else toLatestBtn.classList.remove('show');
+}
+
+function toggleHighlightsPanel(forceOpen){
+  const opening = (typeof forceOpen==='boolean') ? forceOpen : controlsEl.classList.contains('collapsed');
+  controlsEl.classList.toggle('collapsed', !opening);
+  toggleHighlightsBtn.textContent = opening ? 'Highlights ▲' : 'Highlights';
+  if(opening){ setTimeout(()=>keywordsEl.focus(), 120); }
+}
+
+function loadKeywords(){
+  try{
+    const stored=JSON.parse(localStorage.getItem('pager.highlight.keywords')||'[]');
+    if(Array.isArray(stored)) keywords=stored.filter(Boolean);
+  }catch(e){ keywords=[]; }
+  keywordsEl.value=keywords.join('\n');
+}
+
+function highlightLine(line){
+  const tsMatch = line.match(/^\[[^\]]+\]\s*/);
+  const tsRaw = tsMatch ? tsMatch[0].trim() : '';
+  const body = tsMatch ? line.slice(tsMatch[0].length) : line;
+
+  const isHeartbeat = body.includes(HEARTBEAT_TEXT);
+  const pattern = keywords.length ? new RegExp('(' + keywords.map(escRe).join('|') + ')','ig') : null;
+  const hit = pattern ? pattern.test(body) : false;
+  let bodyHtml = pattern && hit ? esc(body).replace(pattern, '<mark>$1</mark>') : esc(body);
+  if(isHeartbeat){ bodyHtml = `<span class="hb">${bodyHtml}</span>`; }
+
+  const dt = parseTs(tsRaw);
+  const tsMs = dt ? dt.getTime() : null;
+  const ageHtml = tsMs ? `<span class="ts-age" data-ts="${tsMs}"></span>` : '';
+  const tsHtml = tsRaw ? `<span class="ts">${esc(tsRaw)}</span>${ageHtml} ` : '';
+
+  return {hit, isHeartbeat, html: tsHtml + bodyHtml};
+}
+
+function renderLines(text){
+  const cleaned=(text||'').trimEnd();
+  if(!cleaned){
+    logEl.innerHTML="<div class='empty'>(waiting for first message)</div>";
+    prevNewest='';
+    return;
+  }
+  const lines=cleaned.split('\n').slice(-400).reverse();
+  const newestNow=lines[0]||'';
+  const hasNewTop=Boolean(prevNewest && newestNow && newestNow!==prevNewest);
+  logEl.innerHTML=lines.map((line,idx)=>{
+    const h=highlightLine(line);
+    const cls=[ 'entry', h.hit?'highlight':'', (hasNewTop && idx===0)?'new-msg':'' ].filter(Boolean).join(' ');
+    return `<div class="${cls}">${h.html}</div>`;
+  }).join('');
+  prevNewest=newestNow;
+  updateRelativeAges();
+}
+
+async function refreshLog(){
+  try{
+    const r=await fetch('/data/messages.log?ts='+Date.now(),{cache:'no-store'});
+    const t=await r.text();
+    if(t!==last){
+      last=t;
+      renderLines(t);
+      const nearTop=logEl.scrollTop<120;
+      if(nearTop){ logEl.scrollTop=0; }
+      updateToLatestButton();
+    }
+    setBadge(statusEl,'connected', '#1b5e20');
+  }catch(e){ setBadge(statusEl,'error', '#7f1d1d'); }
+}
+
+async function refreshHealth(){
+  try{
+    const r=await fetch('/data/health.json?ts='+Date.now(),{cache:'no-store'});
+    const h=await r.json();
+    const age=(h.log_age_sec===999999)?'n/a':(h.log_age_sec+'s');
+    const txt='health:'+h.status+' rtl:'+h.rtl_fm+' mm:'+h.multimon+' age:'+age;
+    let bg='#7f1d1d'; if(h.status==='live') bg='#1b5e20'; else if(h.status==='running') bg='#7c5a00';
+    setBadge(healthEl,txt,bg);
+  }catch(e){ setBadge(healthEl,'health: unavailable','#7f1d1d'); }
+}
+
+saveBtn.addEventListener('click', saveKeywords);
+keywordsEl.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter') saveKeywords(); });
+toggleHighlightsBtn.addEventListener('click', ()=>toggleHighlightsPanel());
+logEl.addEventListener('scroll', updateToLatestButton);
+toLatestBtn.addEventListener('click', ()=>{ logEl.scrollTop=0; updateToLatestButton(); });
+
+loadKeywords();
+toggleHighlightsPanel(false);
+updateToLatestButton();
+setInterval(refreshLog,2000);
+setInterval(refreshHealth,5000);
+setInterval(updateRelativeAges,1000);
+refreshLog();
+refreshHealth();
+</script>
+</body>
+</html>
