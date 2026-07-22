@@ -1,8 +1,7 @@
 # pager-sdr-web
 
-A lightweight Raspberry Pi + RTL-SDR + nginx web frontend for replacing the classic Windows + PDW pager-monitoring stack with a cheap SDR dongle and a browser.
+A lightweight Raspberry Pi + RTL-SDR + nginx web frontend for replacing the classic Windows + PDW POCSAG monitoring stack with a cheap SDR dongle and a browser.
 
-This project packages the working system currently running in Daniel's homelab so it can be redeployed on other Debian/Raspberry Pi hosts.
 
 ## What it does
 
@@ -82,7 +81,7 @@ Edit `/etc/pager-sdr-web/pager.env`:
 - The static UI reads the last several hundred lines from the shared log, newest first.
 - If your SDR is grabbed by DVB kernel drivers, see `docs/DEPLOYMENT.md` for the blacklist note.
 
-## Future nice-to-haves
+## Future features when I get time
 
 - optional docker packaging
 - configurable listen port generation for nginx
