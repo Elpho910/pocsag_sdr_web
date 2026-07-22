@@ -46,7 +46,7 @@ RTL-SDR dongle
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-user>/pager-sdr-web.git
+Clone the repo
 cd pager-sdr-web
 sudo ./scripts/install.sh
 sudo nano /etc/pager-sdr-web/pager.env
